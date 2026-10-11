@@ -1,0 +1,573 @@
+:root {
+  --wall: #1d1147;
+  --wall-dot: #2c1c68;
+  --ink: #130b2e;
+  --paper: #ffffff;
+  --lime: #b8f400;
+  --cyan: #12d6ff;
+  --yellow: #ffe21a;
+  --pink: #ff2d8a;
+  /* Color of the next splat; ink.ts keeps this up to date. */
+  --next: var(--pink);
+  /* How far a sticker sits above the wall. */
+  --lift: 8px;
+  --display: "Bagel Fat One", ui-rounded, system-ui, sans-serif;
+  --body: "Rubik Variable", system-ui, sans-serif;
+  --bounce: cubic-bezier(0.2, 1.5, 0.4, 1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  overscroll-behavior: none;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  background-color: var(--wall);
+  background-image: radial-gradient(var(--wall-dot) 2px, transparent 2.5px);
+  background-size: 28px 28px;
+  color: var(--paper);
+  font-family: var(--body);
+  font-size: 18px;
+  line-height: 1.4;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+/* Fast taps shouldn't zoom the page on a phone or tablet. */
+html,
+button {
+  touch-action: manipulation;
+}
+
+p,
+h1,
+h2,
+ul {
+  margin: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 4px solid var(--cyan);
+  outline-offset: 4px;
+}
+
+/* The page sits between the ink on the wall and the droplets in front. */
+#root {
+  position: relative;
+  z-index: 2;
+  height: 100dvh;
+  /* Every screen fits the viewport, so a finger dragged across the game
+     shouldn't pan, bounce, or zoom the page. */
+  touch-action: none;
+}
+
+.layer {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.layer.paint {
+  z-index: 0;
+}
+
+.layer.wet {
+  z-index: 1;
+}
+
+.layer.front {
+  z-index: 3;
+}
+
+.screen {
+  height: 100%;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+    max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+}
+
+/* White, outlined, and raised: everything you read or press. */
+.sticker {
+  background: var(--paper);
+  color: var(--ink);
+  border: 4px solid var(--ink);
+  border-radius: 26px;
+  box-shadow: 0 var(--lift) 0 var(--ink);
+}
+
+button.sticker:active {
+  translate: 0 calc(var(--lift) - 2px);
+  box-shadow: 0 2px 0 var(--ink);
+}
+
+/* Small text straight on the wall, backed so it reads over any ink. */
+.tag {
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 500;
+}
+
+.icon {
+  width: 28px;
+  height: 28px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@keyframes pop-in {
+  from {
+    scale: 0.7;
+    opacity: 0.3;
+  }
+}
+
+/* A key at the moment it's pressed, easing back to a resting sticker. */
+@keyframes key-hit {
+  from {
+    translate: 0 calc(var(--lift) - 2px);
+    box-shadow: 0 2px 0 var(--ink);
+    background: var(--next);
+  }
+}
+
+@keyframes wobble {
+  0%,
+  100% {
+    rotate: -2deg;
+    scale: 1;
+  }
+  50% {
+    rotate: 2deg;
+    scale: 1.05;
+  }
+}
+
+/* Start */
+
+.start {
+  gap: clamp(14px, 3dvh, 28px);
+  text-align: center;
+}
+
+.title {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: clamp(76px, min(24vw, 24dvh), 230px);
+  line-height: 0.84;
+  rotate: -4deg;
+  -webkit-text-stroke: 0.09em var(--ink);
+  paint-order: stroke fill;
+  text-shadow: 0 0.07em 0 var(--ink);
+}
+
+.title span {
+  display: block;
+}
+
+.title span:last-child {
+  margin-left: 0.5em;
+}
+
+/* A label stuck across the bottom of the title. */
+.subtitle {
+  --lift: 5px;
+  margin-top: -0.6em;
+  padding: 0.1em 0.7em 0.2em;
+  border-radius: 0.6em;
+  background: var(--yellow);
+  font-family: var(--display);
+  font-size: clamp(18px, 3dvh, 28px);
+  rotate: 2deg;
+}
+
+.pitch {
+  max-width: 36ch;
+  font-family: var(--display);
+  font-size: clamp(18px, 2.6dvh, 26px);
+  line-height: 1.2;
+  -webkit-text-stroke: 0.16em var(--ink);
+  paint-order: stroke fill;
+  text-wrap: balance;
+}
+
+/* Each sentence starts its own line. */
+.pitch span,
+.verdict span {
+  display: block;
+}
+
+.go {
+  padding: 0.16em 0.9em 0.26em;
+  border-radius: 0.5em;
+  background: var(--lime);
+  /* The soft shadow keeps the button apart from ink of its own color behind it. */
+  box-shadow:
+    0 var(--lift) 0 var(--ink),
+    0 calc(var(--lift) + 6px) 28px 6px rgb(0 0 0 / 0.7);
+  font-family: var(--display);
+  font-size: clamp(34px, min(8dvh, 11vw), 72px);
+  white-space: nowrap;
+  animation: wobble 2.4s ease-in-out infinite;
+}
+
+.round-info {
+  padding: 4px 12px;
+  border-radius: 10px;
+  background: var(--ink);
+  font-size: 16px;
+}
+
+.corner {
+  --lift: 5px;
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border-radius: 18px;
+}
+
+/* Play */
+
+.play {
+  gap: clamp(18px, 3.5dvh, 40px);
+}
+
+/* Ink that lands behind the card and keys shows through them, faintly enough
+   that the numbers still read. */
+.card,
+.key {
+  background: rgb(255 255 255 / 0.8);
+}
+
+.card {
+  width: min(86vw, 440px);
+  padding: clamp(14px, 2.5dvh, 28px) 24px clamp(18px, 3dvh, 32px);
+  border-radius: 34px;
+  rotate: -1.5deg;
+  font-family: var(--display);
+  text-align: center;
+}
+
+.problem {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.2em;
+  font-size: clamp(56px, 12dvh, 108px);
+  line-height: 1;
+  animation: pop-in 140ms var(--bounce);
+}
+
+.times {
+  width: 0.5em;
+  height: 0.5em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.slot {
+  width: 1.7em;
+  height: 1.1em;
+  margin: 0.08em auto 0;
+  border-bottom: 0.1em solid var(--next);
+  font-size: clamp(64px, 14dvh, 124px);
+  line-height: 1.1;
+}
+
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px 12px;
+  width: min(86vw, 400px);
+  padding-bottom: var(--lift);
+}
+
+.key {
+  display: grid;
+  place-items: center;
+  height: clamp(56px, 9.5dvh, 86px);
+  padding: 0;
+  border-radius: 22px;
+  font-family: var(--display);
+  font-size: clamp(30px, 5dvh, 44px);
+}
+
+.key.hit {
+  animation: key-hit 170ms ease-out;
+}
+
+.key.wide {
+  grid-column: span 2;
+}
+
+.key .icon {
+  width: 1em;
+  height: 0.75em;
+}
+
+/* Small and in the far corner from the keypad, out of the way of fast taps. */
+.quit {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  left: max(10px, env(safe-area-inset-left));
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+}
+
+.quit .icon {
+  width: 24px;
+  height: 24px;
+}
+
+/* Results */
+
+.results {
+  gap: clamp(12px, 2.4dvh, 24px);
+  /* A long list of missed problems scrolls instead of being cut off. */
+  place-content: safe center;
+  overflow-y: auto;
+  touch-action: pan-y;
+  text-align: center;
+}
+
+.tally {
+  min-width: min(80vw, 340px);
+  padding: 6px 40px 18px;
+  border-radius: 34px;
+  rotate: 1.5deg;
+  animation: pop-in 260ms var(--bounce);
+}
+
+.score {
+  font-family: var(--display);
+  font-size: clamp(110px, 26dvh, 260px);
+  line-height: 1;
+}
+
+.score-label {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.after {
+  display: grid;
+  justify-items: center;
+  gap: clamp(12px, 2.4dvh, 24px);
+  animation: pop-in 240ms var(--bounce);
+}
+
+.after[inert] {
+  visibility: hidden;
+  animation: none;
+}
+
+.verdict {
+  font-family: var(--display);
+  font-size: clamp(28px, 4.6dvh, 44px);
+  line-height: 1.1;
+  -webkit-text-stroke: 0.16em var(--ink);
+  paint-order: stroke fill;
+}
+
+.missed {
+  display: grid;
+  justify-items: center;
+}
+
+.missed ul {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-width: 440px;
+  margin-top: 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.missed li {
+  padding: 2px 10px;
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* Settings */
+
+.settings {
+  width: min(92vw, 420px);
+  padding: 22px;
+  /* On a short screen the dialog is taller than the viewport and scrolls. */
+  touch-action: pan-y;
+}
+
+.settings::backdrop {
+  background: rgb(19 11 46 / 0.65);
+}
+
+.settings h2 {
+  margin-bottom: 12px;
+  font-family: var(--display);
+  font-size: 34px;
+  font-weight: 400;
+}
+
+.setting {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 2px solid #e6e1f5;
+  font-weight: 500;
+}
+
+.setting.stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stepper button,
+.tables button {
+  height: 44px;
+  padding: 0;
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  background: var(--paper);
+  font-family: var(--display);
+  font-size: 22px;
+}
+
+.stepper button {
+  width: 44px;
+}
+
+.stepper output {
+  min-width: 3ch;
+  font-family: var(--display);
+  font-size: 26px;
+  text-align: center;
+}
+
+.tables {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.tables button[aria-pressed="true"] {
+  background: var(--lime);
+}
+
+.setting input[type="checkbox"] {
+  width: 28px;
+  height: 28px;
+  accent-color: var(--pink);
+}
+
+.done {
+  --lift: 6px;
+  width: 100%;
+  margin-top: 14px;
+  padding: 8px;
+  background: var(--yellow);
+  font-family: var(--display);
+  font-size: 26px;
+}
+
+/* Below the Done button's raised edge, and quiet: it's for adults. */
+.source {
+  display: block;
+  margin-top: 20px;
+  color: #5d5580;
+  font-size: 15px;
+  text-align: center;
+}
+
+/* Phones on their side: problem on the left, keypad on the right. */
+@media (orientation: landscape) and (max-height: 600px) {
+  .play {
+    grid-auto-flow: column;
+    align-items: center;
+    gap: 5vw;
+  }
+
+  .card {
+    width: min(42vw, 400px);
+  }
+
+  .problem {
+    font-size: clamp(44px, 17dvh, 96px);
+  }
+
+  .slot {
+    font-size: clamp(52px, 20dvh, 110px);
+  }
+
+  .keypad {
+    width: min(40vw, 360px);
+  }
+
+  .key {
+    height: clamp(44px, 15dvh, 80px);
+  }
+
+  .pitch {
+    display: none;
+  }
+
+  .score {
+    font-size: clamp(72px, 30dvh, 160px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .go {
+    animation: none;
+  }
+}

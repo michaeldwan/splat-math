@@ -1,0 +1,29 @@
+.not-found-page {
+  overflow: auto;
+}
+
+.not-found {
+  min-height: 100dvh;
+  height: auto;
+  gap: clamp(24px, 5dvh, 48px);
+  text-align: center;
+}
+
+.not-found .title {
+  color: var(--cyan);
+}
+
+.not-found .pitch {
+  display: block;
+}
+
+.not-found .go {
+  font-size: clamp(28px, min(6dvh, 8vw), 48px);
+  text-decoration: none;
+  animation: none;
+}
+
+.not-found .go:active {
+  translate: 0 calc(var(--lift) - 2px);
+  box-shadow: 0 2px 0 var(--ink);
+}

@@ -1,0 +1,47 @@
+[tools]
+node = "26"
+pnpm = "12"
+
+[tasks.install]
+description = "Install dependencies"
+run = "pnpm install --frozen-lockfile"
+
+[tasks.dev]
+description = "Run the dev server"
+depends = ["install"]
+run = "pnpm dev"
+
+[tasks.check]
+description = "Check formatting, lint, typecheck, and run tests"
+depends = ["install"]
+run = ["pnpm fmt:check", "pnpm lint", "pnpm typecheck", "pnpm test"]
+
+[tasks.fmt]
+description = "Format files"
+depends = ["install"]
+run = "pnpm fmt"
+
+[tasks.lint]
+description = "Lint TypeScript and React code"
+depends = ["install"]
+run = "pnpm lint"
+
+[tasks.build]
+description = "Build the site and Cloudflare deployment output"
+depends = ["install"]
+run = "pnpm build"
+
+[tasks.deploy]
+description = "Build and deploy to Cloudflare Workers"
+depends = ["check"]
+run = "pnpm deploy"
+
+[tasks."deploy-check"]
+description = "Build and validate deployment without uploading"
+depends = ["check"]
+run = "pnpm deploy:check"
+
+[tasks."deploy-preview"]
+description = "Build and deploy an isolated Worker Preview for the current branch"
+depends = ["check"]
+run = "pnpm deploy:preview"
